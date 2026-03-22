@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_19-768855cced0d63b2537048ca79fadf6d350ad40b",
+  "solcVersion": "0.8.19",
+  "solcLongVersion": "0.8.19+commit.7dd6d404",
+  "userSourceNameMap": {
+    "contracts/MedicalRecords.sol": "project/contracts/MedicalRecords.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "paris",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/MedicalRecords.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.19;\r\n\r\ncontract MedicalRecords {\r\n    \r\n    address public owner;\r\n\r\n    struct Record {\r\n        string recordId;\r\n        string recordType;\r\n        string fileHash;\r\n        string fileUrl;\r\n        address uploadedBy;\r\n        uint256 timestamp;\r\n        bool exists;\r\n    }\r\n\r\n    mapping(string => Record) private records;\r\n    string[] private recordIds;\r\n\r\n    event RecordStored(\r\n        string recordId,\r\n        string recordType,\r\n        string fileHash,\r\n        address uploadedBy,\r\n        uint256 timestamp\r\n    );\r\n\r\n    event RecordVerified(\r\n        string recordId,\r\n        bool isValid,\r\n        uint256 timestamp\r\n    );\r\n\r\n    constructor() {\r\n        owner = msg.sender;\r\n    }\r\n\r\n    function storeRecord(\r\n        string memory _recordId,\r\n        string memory _recordType,\r\n        string memory _fileHash,\r\n        string memory _fileUrl\r\n    ) public {\r\n        require(!records[_recordId].exists, \"Record already exists\");\r\n        require(bytes(_recordId).length > 0, \"Record ID cannot be empty\");\r\n        require(bytes(_fileHash).length > 0, \"File hash cannot be empty\");\r\n\r\n        records[_recordId] = Record({\r\n            recordId: _recordId,\r\n            recordType: _recordType,\r\n            fileHash: _fileHash,\r\n            fileUrl: _fileUrl,\r\n            uploadedBy: msg.sender,\r\n            timestamp: block.timestamp,\r\n            exists: true\r\n        });\r\n\r\n        recordIds.push(_recordId);\r\n\r\n        emit RecordStored(\r\n            _recordId,\r\n            _recordType,\r\n            _fileHash,\r\n            msg.sender,\r\n            block.timestamp\r\n        );\r\n    }\r\n\r\n    function verifyRecord(\r\n        string memory _recordId,\r\n        string memory _fileHash\r\n    ) public returns (bool) {\r\n        require(records[_recordId].exists, \"Record does not exist\");\r\n\r\n        bool isValid = keccak256(bytes(records[_recordId].fileHash)) == \r\n                       keccak256(bytes(_fileHash));\r\n\r\n        emit RecordVerified(_recordId, isValid, block.timestamp);\r\n\r\n        return isValid;\r\n    }\r\n\r\n    function getRecord(\r\n        string memory _recordId\r\n    ) public view returns (\r\n        string memory recordType,\r\n        string memory fileHash,\r\n        string memory fileUrl,\r\n        address uploadedBy,\r\n        uint256 timestamp\r\n    ) {\r\n        require(records[_recordId].exists, \"Record does not exist\");\r\n\r\n        Record memory r = records[_recordId];\r\n        return (r.recordType, r.fileHash, r.fileUrl, r.uploadedBy, r.timestamp);\r\n    }\r\n\r\n    function recordExists(\r\n        string memory _recordId\r\n    ) public view returns (bool) {\r\n        return records[_recordId].exists;\r\n    }\r\n\r\n    function getTotalRecords() public view returns (uint256) {\r\n        return recordIds.length;\r\n    }\r\n\r\n    function getAllRecordIds() public view returns (string[] memory) {\r\n        require(msg.sender == owner, \"Only owner can view all records\");\r\n        return recordIds;\r\n    }\r\n}"
+      }
+    }
+  }
+}
