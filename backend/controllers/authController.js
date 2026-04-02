@@ -208,4 +208,48 @@ const removeUser = async (req, res) => {
   }
 };
 
-export { register, login, getProfile, getUsers, removeUser };
+// Update user (admin only)
+const updateUserDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, password } = req.body;
+
+    if (!name || !email || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and role are required",
+      });
+    }
+
+    const validRoles = ["admin", "doctor", "pharmacy", "lab"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
+
+    const { updateUser } = await import("../models/userModel.js");
+    const updated = await updateUser(id, name, email, role, password);
+
+    if (!updated) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "User updated successfully",
+    });
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+export { register, login, getProfile, getUsers, removeUser, updateUserDetails };

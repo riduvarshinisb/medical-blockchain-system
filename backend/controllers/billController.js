@@ -1,19 +1,52 @@
 import { v4 as uuidv4 } from "uuid";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
-import { generateHashFromBuffer } from "../utils/hashGenerator.js";
+import { generateHashFromBuffer, generateHashFromUrl } from "../utils/hashGenerator.js";
 import { contract } from "../config/blockchain.js";
 import {
   createBill,
   getAllBills,
   getBillById,
   getBillsByPatientId,
+  markBillAsTampered,
 } from "../models/billModel.js";
 import { createBlockchainLog } from "../models/blockchainModel.js";
+
+// Auto verify a bill by comparing hashes
+const autoVerifyBill = async (bill) => {
+  try {
+    // Re-fetch file from Cloudinary and regenerate hash
+    const currentHash = await generateHashFromUrl(bill.file_url);
+
+    // Compare with stored hash from database
+    const isAuthentic = currentHash === bill.file_hash;
+
+    // If tampered and not already marked, update database
+    if (!isAuthentic && !bill.is_tampered) {
+      await markBillAsTampered(bill.id);
+      console.log(`⚠️ Tampering detected in bill #${bill.id}`);
+
+      // Log tamper detection
+      await createBlockchainLog(
+        bill.blockchain_record_id,
+        "bill",
+        "verify",
+        currentHash,
+        "auto-detection",
+        null,
+        false
+      );
+    }
+
+    return isAuthentic;
+  } catch (error) {
+    console.error(`Auto-verify failed for bill #${bill.id}:`, error.message);
+    return true; // Don't flag as tampered if verification fails due to network
+  }
+};
 
 // Upload a new bill
 const uploadBill = async (req, res) => {
   try {
-    // Check if file was uploaded
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -52,7 +85,6 @@ const uploadBill = async (req, res) => {
       cloudinaryResult.url
     );
 
-    // Wait for transaction confirmation
     const receipt = await tx.wait();
     console.log("✅ Bill hash stored on blockchain! TX:", receipt.hash);
 
@@ -80,7 +112,7 @@ const uploadBill = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Bill uploaded and secured on blockchain successfully",
+      message: "Bill uploaded and secured successfully",
       data: {
         billId,
         blockchainRecordId,
@@ -98,13 +130,32 @@ const uploadBill = async (req, res) => {
   }
 };
 
-// Get all bills
+// Get all bills with auto-verification
 const getBills = async (req, res) => {
   try {
     const bills = await getAllBills();
+
+    // Auto-verify all bills in background
+    const verifiedBills = await Promise.all(
+      bills.map(async (bill) => {
+        if (bill.file_url && bill.file_hash) {
+          const isAuthentic = await autoVerifyBill(bill);
+          return {
+            ...bill,
+            is_tampered: !isAuthentic,
+            integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+          };
+        }
+        return {
+          ...bill,
+          integrity_status: bill.is_tampered ? "ALTERED" : "AUTHENTIC",
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      data: bills,
+      data: verifiedBills,
     });
   } catch (error) {
     console.error("Get bills error:", error);
@@ -115,7 +166,7 @@ const getBills = async (req, res) => {
   }
 };
 
-// Get single bill by ID
+// Get single bill with auto-verification
 const getBill = async (req, res) => {
   try {
     const { id } = req.params;
@@ -128,9 +179,19 @@ const getBill = async (req, res) => {
       });
     }
 
+    // Auto-verify this bill
+    let isAuthentic = true;
+    if (bill.file_url && bill.file_hash) {
+      isAuthentic = await autoVerifyBill(bill);
+    }
+
     res.status(200).json({
       success: true,
-      data: bill,
+      data: {
+        ...bill,
+        is_tampered: !isAuthentic,
+        integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+      },
     });
   } catch (error) {
     console.error("Get bill error:", error);
@@ -141,15 +202,32 @@ const getBill = async (req, res) => {
   }
 };
 
-// Get bills by patient ID
+// Get bills by patient with auto-verification
 const getPatientBills = async (req, res) => {
   try {
     const { patientId } = req.params;
     const bills = await getBillsByPatientId(patientId);
 
+    const verifiedBills = await Promise.all(
+      bills.map(async (bill) => {
+        if (bill.file_url && bill.file_hash) {
+          const isAuthentic = await autoVerifyBill(bill);
+          return {
+            ...bill,
+            is_tampered: !isAuthentic,
+            integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+          };
+        }
+        return {
+          ...bill,
+          integrity_status: bill.is_tampered ? "ALTERED" : "AUTHENTIC",
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      data: bills,
+      data: verifiedBills,
     });
   } catch (error) {
     console.error("Get patient bills error:", error);

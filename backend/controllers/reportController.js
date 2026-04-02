@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload.js";
-import { generateHashFromBuffer } from "../utils/hashGenerator.js";
+import { generateHashFromBuffer, generateHashFromUrl } from "../utils/hashGenerator.js";
 import { contract } from "../config/blockchain.js";
 import {
   createReport,
@@ -11,10 +11,42 @@ import {
 } from "../models/reportModel.js";
 import { createBlockchainLog } from "../models/blockchainModel.js";
 
+// Auto verify a report by comparing hashes
+const autoVerifyReport = async (report) => {
+  try {
+    // Re-fetch file from Cloudinary and regenerate hash
+    const currentHash = await generateHashFromUrl(report.file_url);
+
+    // Compare with stored hash from database (which came from blockchain)
+    const isAuthentic = currentHash === report.file_hash;
+
+    // If tampered and not already marked, update database
+    if (!isAuthentic && !report.is_tampered) {
+      await markReportAsTampered(report.id);
+      console.log(`⚠️ Tampering detected in report #${report.id}`);
+
+      // Log tamper detection
+      await createBlockchainLog(
+        report.blockchain_record_id,
+        "report",
+        "verify",
+        currentHash,
+        "auto-detection",
+        null,
+        false
+      );
+    }
+
+    return isAuthentic;
+  } catch (error) {
+    console.error(`Auto-verify failed for report #${report.id}:`, error.message);
+    return true; // Don't flag as tampered if verification fails due to network
+  }
+};
+
 // Upload a new report
 const uploadReport = async (req, res) => {
   try {
-    // Check if file was uploaded
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -53,7 +85,6 @@ const uploadReport = async (req, res) => {
       cloudinaryResult.url
     );
 
-    // Wait for transaction confirmation
     const receipt = await tx.wait();
     console.log("✅ Hash stored on blockchain! TX:", receipt.hash);
 
@@ -81,7 +112,7 @@ const uploadReport = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Report uploaded and secured on blockchain successfully",
+      message: "Report uploaded and secured successfully",
       data: {
         reportId,
         blockchainRecordId,
@@ -99,13 +130,32 @@ const uploadReport = async (req, res) => {
   }
 };
 
-// Get all reports
+// Get all reports with auto-verification
 const getReports = async (req, res) => {
   try {
     const reports = await getAllReports();
+
+    // Auto-verify all reports in background
+    const verifiedReports = await Promise.all(
+      reports.map(async (report) => {
+        if (report.file_url && report.file_hash) {
+          const isAuthentic = await autoVerifyReport(report);
+          return {
+            ...report,
+            is_tampered: !isAuthentic,
+            integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+          };
+        }
+        return {
+          ...report,
+          integrity_status: report.is_tampered ? "ALTERED" : "AUTHENTIC",
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      data: reports,
+      data: verifiedReports,
     });
   } catch (error) {
     console.error("Get reports error:", error);
@@ -116,7 +166,7 @@ const getReports = async (req, res) => {
   }
 };
 
-// Get single report by ID
+// Get single report with auto-verification
 const getReport = async (req, res) => {
   try {
     const { id } = req.params;
@@ -129,9 +179,19 @@ const getReport = async (req, res) => {
       });
     }
 
+    // Auto-verify this report
+    let isAuthentic = true;
+    if (report.file_url && report.file_hash) {
+      isAuthentic = await autoVerifyReport(report);
+    }
+
     res.status(200).json({
       success: true,
-      data: report,
+      data: {
+        ...report,
+        is_tampered: !isAuthentic,
+        integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+      },
     });
   } catch (error) {
     console.error("Get report error:", error);
@@ -142,15 +202,32 @@ const getReport = async (req, res) => {
   }
 };
 
-// Get reports by patient ID
+// Get reports by patient with auto-verification
 const getPatientReports = async (req, res) => {
   try {
     const { patientId } = req.params;
     const reports = await getReportsByPatientId(patientId);
 
+    const verifiedReports = await Promise.all(
+      reports.map(async (report) => {
+        if (report.file_url && report.file_hash) {
+          const isAuthentic = await autoVerifyReport(report);
+          return {
+            ...report,
+            is_tampered: !isAuthentic,
+            integrity_status: isAuthentic ? "AUTHENTIC" : "ALTERED",
+          };
+        }
+        return {
+          ...report,
+          integrity_status: report.is_tampered ? "ALTERED" : "AUTHENTIC",
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      data: reports,
+      data: verifiedReports,
     });
   } catch (error) {
     console.error("Get patient reports error:", error);

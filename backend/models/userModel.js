@@ -55,11 +55,31 @@ const verifyPassword = async (plainPassword, hashedPassword) => {
   return await bcrypt.compare(plainPassword, hashedPassword);
 };
 
+// Update user
+const updateUser = async (id, name, email, role, password) => {
+  if (password) {
+    const saltRounds = 12;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const [result] = await pool.execute(
+      "UPDATE users SET name=?, email=?, role=?, password=? WHERE id=?",
+      [name, email, role, hashedPassword, id]
+    );
+    return result.affectedRows > 0;
+  } else {
+    const [result] = await pool.execute(
+      "UPDATE users SET name=?, email=?, role=? WHERE id=?",
+      [name, email, role, id]
+    );
+    return result.affectedRows > 0;
+  }
+};
+
 export {
   createUser,
   findUserByEmail,
   findUserById,
   getAllUsers,
   deleteUser,
+  updateUser,
   verifyPassword,
 };

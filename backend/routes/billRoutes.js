@@ -10,11 +10,9 @@ import { authenticate, authorizeRoles } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Configure multer for memory storage
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  // Only allow PDF and image files
   const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
@@ -26,12 +24,9 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
   storage,
   fileFilter,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max file size
-  },
+  limits: { fileSize: 10 * 1024 * 1024 },
 });
 
-// All routes require authentication
 // Upload bill - pharmacy and admin only
 router.post(
   "/upload",
@@ -41,27 +36,27 @@ router.post(
   uploadBill
 );
 
-// Get all bills - admin and doctor
+// Get all bills - admin, doctor AND pharmacy
 router.get(
   "/",
   authenticate,
-  authorizeRoles("admin", "doctor"),
+  authorizeRoles("admin", "doctor", "pharmacy"),
   getBills
 );
 
-// Get single bill - admin and doctor
+// Get single bill - admin, doctor AND pharmacy
 router.get(
   "/:id",
   authenticate,
-  authorizeRoles("admin", "doctor"),
+  authorizeRoles("admin", "doctor", "pharmacy"),
   getBill
 );
 
-// Get bills by patient - admin and doctor
+// Get bills by patient - admin, doctor AND pharmacy
 router.get(
   "/patient/:patientId",
   authenticate,
-  authorizeRoles("admin", "doctor"),
+  authorizeRoles("admin", "doctor", "pharmacy"),
   getPatientBills
 );
 
