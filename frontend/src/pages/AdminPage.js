@@ -6,6 +6,7 @@ import UploadBill from "../components/UploadBill.js";
 import BlockchainStatus from "../components/BlockchainStatus.js";
 import { register, getUsers, deleteUser } from "../services/auth.js";
 import { getReports, getBills } from "../services/blockchain.js";
+import { getPatients, createPatient, updatePatient, deletePatient } from "../services/patients.js";
 
 const S = {
   sectionLabel: { fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"2px", color:"#999", marginBottom:"24px", paddingBottom:"12px", borderBottom:"1px solid #e0ddd6" },
@@ -47,8 +48,12 @@ const getRoleBadgeStyle = (role) => {
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [users, setUsers] = useState([]);
-  const [reports, setReports] = useState([]);
-  const [bills, setBills] = useState([]);
+const [reports, setReports] = useState([]);
+const [bills, setBills] = useState([]);
+const [patients, setPatients] = useState([]);
+const [showPatientForm, setShowPatientForm] = useState(false);
+const [editPatient, setEditPatient] = useState(null);
+const [newPatient, setNewPatient] = useState({ name:"", age:"", gender:"", contact:"", address:"" });
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [newUser, setNewUser] = useState({ name:"", email:"", password:"", role:"doctor" });
@@ -59,17 +64,18 @@ const AdminPage = () => {
   }, []);
 
   const fetchAll = async () => {
-    try {
-      const [usersRes, reportsRes, billsRes] = await Promise.all([
-        getUsers(), getReports(), getBills()
-      ]);
-      if (usersRes.success) setUsers(usersRes.data);
-      if (reportsRes.success) setReports(reportsRes.data);
-      if (billsRes.success) setBills(billsRes.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  try {
+    const [usersRes, reportsRes, billsRes, patientsRes] = await Promise.all([
+      getUsers(), getReports(), getBills(), getPatients()
+    ]);
+    if (usersRes.success) setUsers(usersRes.data);
+    if (reportsRes.success) setReports(reportsRes.data);
+    if (billsRes.success) setBills(billsRes.data);
+    if (patientsRes.success) setPatients(patientsRes.data);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleAddUser = async (e) => {
     e.preventDefault();
@@ -130,6 +136,68 @@ const handleEditUser = async (e) => {
   } finally {
     setLoading(false);
   }
+};
+
+const handleAddPatient = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const res = await createPatient(newPatient);
+    if (res.success) {
+      toast.success("Patient added successfully");
+      setShowPatientForm(false);
+      setNewPatient({ name:"", age:"", gender:"", contact:"", address:"" });
+      fetchAll();
+    }
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Failed to add patient");
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleEditPatient = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  try {
+    const res = await updatePatient(editPatient.id, newPatient);
+    if (res.success) {
+      toast.success("Patient updated successfully");
+      setShowPatientForm(false);
+      setEditPatient(null);
+      setNewPatient({ name:"", age:"", gender:"", contact:"", address:"" });
+      fetchAll();
+    }
+  } catch (err) {
+    toast.error(err.response?.data?.message || "Failed to update patient");
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleDeletePatient = async (id) => {
+  if (!window.confirm("Delete this patient? This will also delete their records.")) return;
+  try {
+    const res = await deletePatient(id);
+    if (res.success) {
+      toast.success("Patient removed");
+      fetchAll();
+    }
+  } catch (err) {
+    toast.error("Failed to delete patient");
+  }
+};
+
+const handleStartEditPatient = (patient) => {
+  setEditPatient(patient);
+  setNewPatient({
+    name: patient.name,
+    age: patient.age || "",
+    gender: patient.gender || "",
+    contact: patient.contact || "",
+    address: patient.address || "",
+  });
+  setShowPatientForm(true);
 };
 
   const handleDelete = async (id) => {
@@ -343,6 +411,93 @@ const handleEditUser = async (e) => {
     </div>
   );
 
+  const renderPatients = () => (
+  <div>
+    <div style={S.tableWrap}>
+      <div style={S.tableHeader}>
+        <div style={S.tableTitle}>PATIENT REGISTRY</div>
+        <button onClick={() => { setShowPatientForm(!showPatientForm); setEditPatient(null); setNewPatient({ name:"", age:"", gender:"", contact:"", address:"" }); }} style={S.addBtn}>
+          {showPatientForm && !editPatient ? "CANCEL" : "+ ADD PATIENT"}
+        </button>
+      </div>
+
+      {showPatientForm && (
+        <div style={S.formWrap}>
+          <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"1.5px", color:"#999", marginBottom:"16px" }}>
+            {editPatient ? `EDITING PATIENT #${editPatient.id}` : "REGISTER NEW PATIENT"}
+          </div>
+          <form onSubmit={editPatient ? handleEditPatient : handleAddPatient}>
+            <div style={S.formGrid}>
+              <div>
+                <label style={S.label}>FULL NAME</label>
+                <input value={newPatient.name} onChange={e => setNewPatient({...newPatient, name:e.target.value})} required placeholder="Patient Full Name" style={S.input} onFocus={e => e.target.style.borderColor="#1a1a1a"} onBlur={e => e.target.style.borderColor="#e0ddd6"} />
+              </div>
+              <div>
+                <label style={S.label}>AGE</label>
+                <input type="number" value={newPatient.age} onChange={e => setNewPatient({...newPatient, age:e.target.value})} placeholder="Age" min="0" max="150" style={S.input} onFocus={e => e.target.style.borderColor="#1a1a1a"} onBlur={e => e.target.style.borderColor="#e0ddd6"} />
+              </div>
+              <div>
+                <label style={S.label}>GENDER</label>
+                <select value={newPatient.gender} onChange={e => setNewPatient({...newPatient, gender:e.target.value})} style={S.select}>
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={S.label}>CONTACT</label>
+                <input value={newPatient.contact} onChange={e => setNewPatient({...newPatient, contact:e.target.value})} placeholder="Phone number" style={S.input} onFocus={e => e.target.style.borderColor="#1a1a1a"} onBlur={e => e.target.style.borderColor="#e0ddd6"} />
+              </div>
+              <div style={{ gridColumn:"span 2" }}>
+                <label style={S.label}>ADDRESS</label>
+                <input value={newPatient.address} onChange={e => setNewPatient({...newPatient, address:e.target.value})} placeholder="Full address" style={S.input} onFocus={e => e.target.style.borderColor="#1a1a1a"} onBlur={e => e.target.style.borderColor="#e0ddd6"} />
+              </div>
+            </div>
+            <div style={{ marginTop:"16px", display:"flex", gap:"12px" }}>
+              <button type="submit" disabled={loading} style={{ ...S.submitBtn, opacity: loading ? 0.6 : 1 }}>
+                {loading ? "SAVING..." : editPatient ? "SAVE CHANGES →" : "ADD PATIENT →"}
+              </button>
+              <button type="button" onClick={() => { setShowPatientForm(false); setEditPatient(null); setNewPatient({ name:"", age:"", gender:"", contact:"", address:"" }); }}
+                style={{ ...S.submitBtn, background:"#fff", color:"#666", border:"1px solid #e0ddd6" }}>
+                CANCEL
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {patients.length === 0 ? (
+        <div style={S.empty}>NO PATIENTS REGISTERED</div>
+      ) : (
+        <>
+          <div style={{ ...S.row, background:"#fafaf8", borderBottom:"1px solid #e0ddd6" }}>
+            {["ID","NAME","AGE","GENDER","CONTACT","REGISTERED","ACTIONS"].map((h, i) => (
+              <div key={i} style={{ ...S.td, flex: i===1||i===4 ? 2 : 1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"1px", color:"#999" }}>{h}</div>
+            ))}
+          </div>
+          {patients.map(patient => (
+            <div key={patient.id} style={S.row}>
+              <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>#{patient.id}</div>
+              <div style={{ ...S.td, flex:2, fontWeight:"500", color:"#1a1a1a" }}>{patient.name}</div>
+              <div style={{ ...S.td, flex:1, color:"#1a1a1a" }}>{patient.age || "—"}</div>
+              <div style={{ ...S.td, flex:1, color:"#1a1a1a", textTransform:"capitalize" }}>{patient.gender || "—"}</div>
+              <div style={{ ...S.td, flex:2, color:"#1a1a1a" }}>{patient.contact || "—"}</div>
+              <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>
+                {new Date(patient.created_at).toLocaleDateString()}
+              </div>
+              <div style={{ ...S.td, flex:1, display:"flex", gap:"12px" }}>
+                <button onClick={() => handleStartEditPatient(patient)} style={{ ...S.deleteBtn, color:"#1a1a1a" }}>EDIT</button>
+                <button onClick={() => handleDeletePatient(patient.id)} style={S.deleteBtn}>REMOVE</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  </div>
+);
+
   const renderRecords = (data, kind) => (
     <div>
       <div style={S.tableWrap}>
@@ -399,6 +554,7 @@ const handleEditUser = async (e) => {
       <div className="animate-in">
         {activeTab === "overview" && renderOverview()}
         {activeTab === "users" && renderUsers()}
+        {activeTab === "patients" && renderPatients()}
         {activeTab === "reports" && renderRecords(reports, "report")}
         {activeTab === "bills" && renderRecords(bills, "bill")}
         {activeTab === "audit" && <BlockchainStatus />}

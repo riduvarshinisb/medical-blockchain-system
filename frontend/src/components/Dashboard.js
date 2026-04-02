@@ -28,12 +28,13 @@ const S = {
 
 const getRoleTabs = (role) => {
   if (role === "admin") return [
-    { id:"overview", label:"OVERVIEW" },
-    { id:"users", label:"MANAGE USERS" },
-    { id:"reports", label:"REPORTS" },
-    { id:"bills", label:"BILLS" },
-    { id:"audit", label:"AUDIT LOG" },
-  ];
+  { id:"overview", label:"OVERVIEW" },
+  { id:"users", label:"MANAGE USERS" },
+  { id:"patients", label:"PATIENTS" },
+  { id:"reports", label:"REPORTS" },
+  { id:"bills", label:"BILLS" },
+  { id:"audit", label:"AUDIT LOG" },
+];
   if (role === "doctor") return [
   { id:"reports", label:"PATIENT REPORTS" },
   { id:"bills", label:"PHARMACY BILLS" },

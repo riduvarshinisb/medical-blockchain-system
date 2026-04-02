@@ -10,6 +10,7 @@ import authRoutes from "./routes/authRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import billRoutes from "./routes/billRoutes.js";
 import verifyRoutes from "./routes/verifyRoutes.js";
+import patientRoutes from "./routes/patientRoutes.js";
 
 // Import database and blockchain connections
 import "./config/db.js";
@@ -42,6 +43,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/bills", billRoutes);
 app.use("/api/verify", verifyRoutes);
+app.use("/api/patients", patientRoutes);
 
 // ============================================
 // HEALTH CHECK ROUTE
