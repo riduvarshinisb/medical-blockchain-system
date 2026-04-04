@@ -188,8 +188,8 @@ VALUES ('Hospital Admin', 'admin@hospital.com', 'HASH_FROM_ABOVE', 'admin');
 2. This fingerprint is stored on the Ethereum blockchain (immutable)
 3. Every time the record is accessed, the system re-downloads the file
 4. A new SHA-256 hash is generated from the current file
-5. If the hashes match → **AUTHENTIC** ✅
-6. If the hashes don't match → **ALTERED** ❌ and admin is alerted instantly
+5. If the hashes match → **AUTHENTIC** 
+6. If the hashes don't match → **ALTERED**  and admin is alerted instantly
 
 This means even if someone modifies the file by a single pixel or character, it is detected immediately on the next access.
 
