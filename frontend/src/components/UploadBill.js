@@ -84,9 +84,13 @@ const UploadBill = ({ onSuccess }) => {
           <label style={S.label}>Patient</label>
           <select value={patientId} onChange={e => setPatientId(e.target.value)} required style={S.select} onFocus={e => e.target.style.borderColor="#1a1a1a"} onBlur={e => e.target.style.borderColor="#e0ddd6"}>
             <option value="">Select patient</option>
-            {patients.map(p => (
-              <option key={p.id} value={p.id}>{p.name} {p.age ? `· ${p.age} yrs` : ""} {p.gender ? `· ${p.gender}` : ""}</option>
-            ))}
+{patients.length === 0 ? (
+  <option disabled value="">No patients registered — contact admin</option>
+) : (
+  patients.map(p => (
+    <option key={p.id} value={p.id}>{p.name} {p.age ? `· ${p.age} yrs` : ""} {p.gender ? `· ${p.gender}` : ""}</option>
+  ))
+)}
           </select>
           {selectedPatient && (
             <div style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", color:"#16a34a", marginTop:"6px", letterSpacing:"0.5px" }}>
