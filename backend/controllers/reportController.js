@@ -14,18 +14,29 @@ import { createBlockchainLog } from "../models/blockchainModel.js";
 // Auto verify a report by comparing hashes
 const autoVerifyReport = async (report) => {
   try {
-    // Re-fetch file from Cloudinary and regenerate hash
+    if (!report.file_url || !report.file_hash || !report.blockchain_record_id) {
+      return true;
+    }
+
+    // Step 1: Re-fetch file from Cloudinary and regenerate hash
     const currentHash = await generateHashFromUrl(report.file_url);
 
-    // Compare with stored hash from database (which came from blockchain)
-    const isAuthentic = currentHash === report.file_hash;
+    // Step 2: Get the original hash from BLOCKCHAIN (source of truth)
+    let blockchainHash = report.file_hash; // fallback to MySQL
+    try {
+      const blockchainRecord = await contract.getRecord(report.blockchain_record_id);
+      blockchainHash = blockchainRecord[1]; // fileHash is index 1 in the tuple
+      console.log(`Blockchain hash for ${report.blockchain_record_id}: ${blockchainHash}`);
+    } catch (err) {
+      console.log("Could not fetch from blockchain, using MySQL hash as fallback:", err.message);
+    }
 
-    // If tampered and not already marked, update database
+    // Step 3: Compare current file hash against BLOCKCHAIN hash
+    const isAuthentic = currentHash === blockchainHash;
+
     if (!isAuthentic && !report.is_tampered) {
       await markReportAsTampered(report.id);
-      console.log(`⚠️ Tampering detected in report #${report.id}`);
-
-      // Log tamper detection
+      console.log(`Tampering detected in report #${report.id}`);
       await createBlockchainLog(
         report.blockchain_record_id,
         "report",
@@ -40,7 +51,7 @@ const autoVerifyReport = async (report) => {
     return isAuthentic;
   } catch (error) {
     console.error(`Auto-verify failed for report #${report.id}:`, error.message);
-    return true; // Don't flag as tampered if verification fails due to network
+    return true;
   }
 };
 
