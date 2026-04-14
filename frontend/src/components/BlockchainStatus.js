@@ -17,7 +17,7 @@ const BlockchainStatus = () => {
     i + 1,
     log.record_type,
     log.action,
-    log.is_authentic ? "Authentic" : "Altered",
+    log.is_valid ? "Authentic" : "Altered",
     log.performed_by_name || "System",
     new Date(log.created_at).toLocaleString(),
   ]);
@@ -37,8 +37,8 @@ const BlockchainStatus = () => {
 
   const stats = {
     total: logs.length,
-    authentic: logs.filter(l => l.is_authentic).length,
-    altered: logs.filter(l => !l.is_authentic).length,
+    authentic: logs.filter(l => l.is_valid).length,
+altered: logs.filter(l => !l.is_valid).length,
     reports: logs.filter(l => l.record_type === "report").length,
     bills: logs.filter(l => l.record_type === "bill").length,
   };
@@ -117,9 +117,9 @@ const BlockchainStatus = () => {
                   </span>
                 </div>
                 <div style={{ flex:1 }}>
-                  <span className={log.is_authentic ? "badge badge-authentic" : "badge badge-altered"}>
-                    {log.is_authentic ? "Authentic" : "Altered"}
-                  </span>
+                  <span className={log.is_valid ? "badge badge-authentic" : "badge badge-altered"}>
+  {log.is_valid ? "Authentic" : "Altered"}
+</span>
                 </div>
                 <div style={{ ...S.td, flex:2, color:"var(--text-3)" }}>{log.performed_by_name || "System"}</div>
                 <div style={{ ...S.td, flex:2, fontSize:"12px", color:"var(--text-4)" }}>{new Date(log.created_at).toLocaleString()}</div>
