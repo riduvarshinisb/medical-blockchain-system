@@ -38,14 +38,14 @@ const autoVerifyBill = async (bill) => {
       await markBillAsTampered(bill.id);
       console.log(`Tampering detected in bill #${bill.id}`);
       await createBlockchainLog(
-        bill.blockchain_record_id,
-        "bill",
-        "verify",
-        currentHash,
-        "auto-detection",
-        null,
-        false
-      );
+  report.blockchain_record_id,
+  "report",
+  "verify",
+  currentHash,
+  null,              // blockchainTx — no tx for verify
+  null,              // performedBy — system action
+  false              // isValid
+);
     }
 
     return isAuthentic;
@@ -112,14 +112,14 @@ const uploadBill = async (req, res) => {
 
     // Step 6: Log to blockchain_logs
     await createBlockchainLog(
-      blockchainRecordId,
-      "bill",
-      "store",
-      fileHash,
-      receipt.hash,
-      req.user.userId,
-      true
-    );
+  blockchainRecordId,  // recordId
+  "report",            // recordType
+  "store",             // action
+  fileHash,            // fileHash
+  txHash,              // blockchainTx ← use the tx hash here
+  req.user.userId,     // performedBy ← user ID goes here
+  true                 // isValid
+);
 
     res.status(201).json({
       success: true,

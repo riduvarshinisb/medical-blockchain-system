@@ -1,135 +1,109 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
-import Dashboard from "../components/Dashboard.js";
 import { getReports, getBills } from "../services/blockchain.js";
-
-const S = {
-  sectionLabel: { fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"2px", color:"#999", marginBottom:"24px", paddingBottom:"12px", borderBottom:"1px solid #e0ddd6" },
-  tableWrap: { background:"#fff", border:"1px solid #e0ddd6" },
-  tableHeader: { padding:"14px 20px", borderBottom:"1px solid #e0ddd6" },
-  tableTitle: { fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"2px", color:"#999" },
-  row: { padding:"14px 20px", borderBottom:"1px solid #f0ede8", display:"flex", alignItems:"center" },
-  td: { fontSize:"13px", color:"#1a1a1a", fontWeight:"500" },
-  badge: { fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", padding:"3px 8px", display:"inline-block" },
-  empty: { padding:"48px", textAlign:"center", fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb", letterSpacing:"1px" },
-};
+import Dashboard from "../components/Dashboard.js";
 
 const DoctorPage = () => {
   const [activeTab, setActiveTab] = useState("reports");
   const [reports, setReports] = useState([]);
   const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    getReports().then(r => { if (r.success) setReports(r.data); });
+    getBills().then(r => { if (r.success) setBills(r.data); });
+  }, []);
 
-  const fetchData = async () => {
-    try {
-      const [rRes, bRes] = await Promise.all([getReports(), getBills()]);
-      if (rRes.success) setReports(rRes.data);
-      if (bRes.success) setBills(bRes.data);
-    } catch (err) {
-      toast.error("Failed to fetch records");
-    } finally {
-      setLoading(false);
-    }
+  const S = {
+    tableWrap: { background:"var(--white)", border:"1px solid var(--border)", borderRadius:"12px", overflow:"hidden" },
+    tableHead: { display:"flex", padding:"10px 16px", background:"var(--bg)", borderBottom:"1px solid var(--border)" },
+    tableRow: { display:"flex", padding:"13px 16px", borderBottom:"1px solid #f3f4f6", alignItems:"center", transition:"background 0.12s" },
+    th: { fontSize:"11px", fontWeight:"600", color:"var(--text-4)", textTransform:"uppercase", letterSpacing:"0.6px" },
+    td: { fontSize:"13px", color:"var(--text-2)" },
+    empty: { padding:"48px 24px", textAlign:"center", color:"var(--text-4)", fontSize:"13px" },
+    sectionHeader: { display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:"1px solid var(--border)" },
+  };
+
+  const StatusBadge = ({ tampered }) => (
+    <span className={tampered ? "badge badge-altered" : "badge badge-authentic"}>
+      {tampered ? "Altered" : "Authentic"}
+    </span>
+  );
+
+  const FileLink = ({ item }) => {
+    if (item.is_tampered) return <span className="badge badge-blocked">Blocked</span>;
+    if (!item.file_url) return <span style={{ color:"var(--text-4)", fontSize:"12px" }}>—</span>;
+    return <a href={item.file_url} target="_blank" rel="noreferrer" style={{ fontSize:"12px", color:"var(--teal)", fontWeight:"500", textDecoration:"none" }}>View →</a>;
   };
 
   const renderReports = () => (
-    <div>
-      <div style={S.sectionLabel}>PATIENT MEDICAL REPORTS</div>
+    <div className="animate-in">
       <div style={S.tableWrap}>
-        <div style={{ ...S.row, background:"#fafaf8", borderBottom:"1px solid #e0ddd6" }}>
-          {["ID","PATIENT","REPORT TYPE","UPLOADED BY","STATUS","DATE","FILE"].map((h, i) => (
-  <div key={i} style={{ ...S.td, flex: i===1||i===3 ? 2 : 1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"1px", color:"#999" }}>{h}</div>
-))}
+        <div style={S.sectionHeader}>
+          <span style={{ fontSize:"13px", fontWeight:"600", color:"var(--text)" }}>Patient Medical Reports</span>
+          <span style={{ fontSize:"11px", color:"var(--text-4)" }}>{reports.length} record{reports.length !== 1 ? "s" : ""}</span>
         </div>
-        {loading ? (
-          <div style={S.empty}>LOADING RECORDS...</div>
-        ) : reports.length === 0 ? (
-          <div style={S.empty}>NO REPORTS FOUND</div>
-        ) : reports.map(r => (
-          <div key={r.id} style={S.row}>
-            <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>#{r.id}</div>
-            <div style={{ ...S.td, flex:2, fontWeight:"500", color:"#1a1a1a" }}>{r.patient_name}</div>
-            <div style={{ ...S.td, flex:1, color:"#666" }}>{r.report_type?.replace("_"," ")}</div>
-            <div style={{ ...S.td, flex:2, color:"#666" }}>{r.uploaded_by_name}</div>
-            <div style={{ ...S.td, flex:1 }}>
-              {r.is_tampered ? (
-                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#dc2626" }}>ALTERED</span>
-              ) : (
-                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#16a34a" }}>AUTHENTIC</span>
-              )}
+        {reports.length === 0 ? <div style={S.empty}>No reports available</div> : (
+          <>
+            <div style={S.tableHead}>
+              {["ID","Patient","Report Type","Uploaded By","Status","Date","File"].map((h,i) => (
+                <div key={i} style={{ ...S.th, flex:[0.5,2,1.5,2,1,1,1][i] }}>{h}</div>
+              ))}
             </div>
-            <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>
-  {new Date(r.created_at).toLocaleDateString()}
-</div>
-<div style={{ ...S.td, flex:1 }}>
-  {r.file_url ? (
-    <a href={r.file_url} target="_blank" rel="noreferrer"
-      style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#1a1a1a", letterSpacing:"0.5px", textDecoration:"none", borderBottom:"1px solid #1a1a1a", paddingBottom:"1px" }}>
-      VIEW →
-    </a>
-  ) : (
-    <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>—</span>
-  )}
-</div>
-          </div>
-        ))}
+            {reports.map(r => (
+              <div key={r.id} style={S.tableRow}
+                onMouseEnter={e => e.currentTarget.style.background="var(--teal-faint)"}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <div style={{ ...S.td, flex:0.5, color:"var(--text-4)", fontSize:"12px" }}>#{r.id}</div>
+                <div style={{ ...S.td, flex:2, fontWeight:"500" }}>{r.patient_name}</div>
+                <div style={{ ...S.td, flex:1.5, color:"var(--text-3)", textTransform:"capitalize" }}>{r.report_type?.replace("_"," ")}</div>
+                <div style={{ ...S.td, flex:2, color:"var(--text-3)" }}>{r.uploaded_by_name}</div>
+                <div style={{ flex:1 }}><StatusBadge tampered={r.is_tampered} /></div>
+                <div style={{ ...S.td, flex:1, fontSize:"12px", color:"var(--text-4)" }}>{new Date(r.created_at).toLocaleDateString()}</div>
+                <div style={{ flex:1 }}><FileLink item={r} /></div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 
   const renderBills = () => (
-    <div>
-      <div style={S.sectionLabel}>PHARMACY BILLS</div>
+    <div className="animate-in">
       <div style={S.tableWrap}>
-        <div style={{ ...S.row, background:"#fafaf8", borderBottom:"1px solid #e0ddd6" }}>
-          {["ID","PATIENT","AMOUNT","UPLOADED BY","STATUS","DATE","FILE"].map((h, i) => (
-            <div key={i} style={{ ...S.td, flex: i===1||i===3 ? 2 : 1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"10px", letterSpacing:"1px", color:"#999" }}>{h}</div>
-          ))}
+        <div style={S.sectionHeader}>
+          <span style={{ fontSize:"13px", fontWeight:"600", color:"var(--text)" }}>Pharmacy Bills</span>
+          <span style={{ fontSize:"11px", color:"var(--text-4)" }}>{bills.length} record{bills.length !== 1 ? "s" : ""}</span>
         </div>
-        {loading ? (
-          <div style={S.empty}>LOADING RECORDS...</div>
-        ) : bills.length === 0 ? (
-          <div style={S.empty}>NO BILLS FOUND</div>
-        ) : bills.map(b => (
-          <div key={b.id} style={S.row}>
-            <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>#{b.id}</div>
-            <div style={{ ...S.td, flex:2, fontWeight:"500", color:"#1a1a1a" }}>{b.patient_name}</div>
-            <div style={{ ...S.td, flex:1, fontWeight:"500", color:"#1a1a1a" }}>₹{b.bill_amount}</div>
-            <div style={{ ...S.td, flex:2, color:"#666" }}>{b.uploaded_by_name}</div>
-            <div style={{ ...S.td, flex:1 }}>
-              {b.is_tampered ? (
-                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#dc2626" }}>ALTERED</span>
-              ) : (
-                <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#16a34a" }}>AUTHENTIC</span>
-              )}
+        {bills.length === 0 ? <div style={S.empty}>No bills available</div> : (
+          <>
+            <div style={S.tableHead}>
+              {["ID","Patient","Amount","Uploaded By","Status","Date","File"].map((h,i) => (
+                <div key={i} style={{ ...S.th, flex:[0.5,2,1.2,2,1,1,1][i] }}>{h}</div>
+              ))}
             </div>
-            <div style={{ ...S.td, flex:1, fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>
-  {new Date(b.created_at).toLocaleDateString()}
-</div>
-<div style={{ ...S.td, flex:1 }}>
-  {b.file_url ? (
-    <a href={b.file_url} target="_blank" rel="noreferrer"
-      style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#1a1a1a", letterSpacing:"0.5px", textDecoration:"none", borderBottom:"1px solid #1a1a1a", paddingBottom:"1px" }}>
-      VIEW →
-    </a>
-  ) : (
-    <span style={{ fontFamily:"'IBM Plex Mono',monospace", fontSize:"11px", color:"#bbb" }}>—</span>
-  )}
-</div>
-          </div>
-        ))}
+            {bills.map(b => (
+              <div key={b.id} style={S.tableRow}
+                onMouseEnter={e => e.currentTarget.style.background="var(--teal-faint)"}
+                onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                <div style={{ ...S.td, flex:0.5, color:"var(--text-4)", fontSize:"12px" }}>#{b.id}</div>
+                <div style={{ ...S.td, flex:2, fontWeight:"500" }}>{b.patient_name}</div>
+                <div style={{ ...S.td, flex:1.2, color:"var(--text-3)" }}>₹{parseFloat(b.bill_amount).toLocaleString()}</div>
+                <div style={{ ...S.td, flex:2, color:"var(--text-3)" }}>{b.uploaded_by_name}</div>
+                <div style={{ flex:1 }}><StatusBadge tampered={b.is_tampered} /></div>
+                <div style={{ ...S.td, flex:1, fontSize:"12px", color:"var(--text-4)" }}>{new Date(b.created_at).toLocaleDateString()}</div>
+                <div style={{ flex:1 }}><FileLink item={b} /></div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
 
   return (
     <Dashboard activeTab={activeTab} setActiveTab={setActiveTab}>
-      <div className="animate-in">
-        {activeTab === "reports" && renderReports()}
-        {activeTab === "bills" && renderBills()}
-      </div>
+      {activeTab === "reports" && renderReports()}
+      {activeTab === "bills" && renderBills()}
     </Dashboard>
   );
 };

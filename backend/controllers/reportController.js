@@ -38,14 +38,14 @@ const autoVerifyReport = async (report) => {
       await markReportAsTampered(report.id);
       console.log(`Tampering detected in report #${report.id}`);
       await createBlockchainLog(
-        report.blockchain_record_id,
-        "report",
-        "verify",
-        currentHash,
-        "auto-detection",
-        null,
-        false
-      );
+  report.blockchain_record_id,
+  "report",
+  "verify",
+  currentHash,
+  null,              // blockchainTx — no tx for verify
+  null,              // performedBy — system action
+  false              // isValid
+);
     }
 
     return isAuthentic;
@@ -90,36 +90,37 @@ const uploadReport = async (req, res) => {
 
     // Step 4: Store hash on blockchain
     const tx = await contract.storeRecord(
-      blockchainRecordId,
-      reportType,
-      fileHash,
-      cloudinaryResult.url
-    );
+  blockchainRecordId,
+  reportType,
+  fileHash,
+  cloudinaryResult.url
+);
 
-    const receipt = await tx.wait();
-    console.log("✅ Hash stored on blockchain! TX:", receipt.hash);
+const receipt = await tx.wait();
+const txHash = receipt.hash || receipt.transactionHash || tx.hash || "pending";
+console.log("✅ Hash stored on blockchain! TX:", txHash);
 
     // Step 5: Save metadata to MySQL database
     const reportId = await createReport(
-      patientId,
-      req.user.userId,
-      reportType,
-      cloudinaryResult.url,
-      fileHash,
-      receipt.hash,
-      blockchainRecordId
-    );
+  patientId,
+  req.user.userId,
+  reportType,
+  cloudinaryResult.url,
+  fileHash,
+  txHash,
+  blockchainRecordId
+);
 
     // Step 6: Log to blockchain_logs
     await createBlockchainLog(
-      blockchainRecordId,
-      "report",
-      "store",
-      fileHash,
-      receipt.hash,
-      req.user.userId,
-      true
-    );
+  blockchainRecordId,  // recordId
+  "report",            // recordType
+  "store",             // action
+  fileHash,            // fileHash
+  txHash,              // blockchainTx ← use the tx hash here
+  req.user.userId,     // performedBy ← user ID goes here
+  true                 // isValid
+);
 
     res.status(201).json({
       success: true,
