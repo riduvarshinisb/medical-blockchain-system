@@ -13,13 +13,32 @@ import { createBlockchainLog, getLogsByRecordId } from "../models/blockchainMode
 
 const autoVerifyBill = async (bill) => {
   try {
-    const currentHash = await generateHashFromUrl(bill.file_url);
-    const isAuthentic = currentHash === bill.file_hash;
+    // Skip blockchain call if already tampered — just return false
+    if (bill.is_tampered) {
+      return false;
+    }
 
-    if (!isAuthentic) {
-      if (!bill.is_tampered) {
-        await markBillAsTampered(bill.id);
-        console.log(`⚠️ Tampering detected in bill #${bill.id}`);
+    const currentHash = await generateHashFromUrl(bill.file_url);
+
+    let sourceHash = bill.file_hash;
+    try {
+      const blockchainRecord = await contract.getRecord(
+        bill.blockchain_record_id
+      );
+      sourceHash = blockchainRecord[1];
+      console.log(`Blockchain hash for ${bill.blockchain_record_id}: ${sourceHash}`);
+    } catch (err) {
+      console.log("Blockchain fetch failed, using MySQL fallback:", err.message);
+    }
+
+    const isAuthentic = currentHash === sourceHash;
+
+    if (!isAuthentic && !bill.is_tampered) {
+      await markBillAsTampered(bill.id);
+      console.log(`⚠️ Tampering detected in bill #${bill.id}`);
+      const existingLogs = await getLogsByRecordId(bill.blockchain_record_id);
+      const hasVerifyLog = existingLogs.some(l => l.action === "verify");
+      if (!hasVerifyLog) {
         await createBlockchainLog(
           bill.blockchain_record_id,
           "bill",
@@ -29,20 +48,6 @@ const autoVerifyBill = async (bill) => {
           null,
           false
         );
-      } else {
-        const existingLogs = await getLogsByRecordId(bill.blockchain_record_id);
-        const hasVerifyLog = existingLogs.some(l => l.action === "verify");
-        if (!hasVerifyLog) {
-          await createBlockchainLog(
-            bill.blockchain_record_id,
-            "bill",
-            "verify",
-            currentHash,
-            null,
-            null,
-            false
-          );
-        }
       }
     }
 

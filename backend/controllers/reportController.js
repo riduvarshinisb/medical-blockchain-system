@@ -13,14 +13,32 @@ import { createBlockchainLog, getLogsByRecordId } from "../models/blockchainMode
 
 const autoVerifyReport = async (report) => {
   try {
-    const currentHash = await generateHashFromUrl(report.file_url);
-    const isAuthentic = currentHash === report.file_hash;
+    // Skip blockchain call if already tampered — just return false
+    if (report.is_tampered) {
+      return false;
+    }
 
-    if (!isAuthentic) {
-      if (!report.is_tampered) {
-        // First time detecting — mark and log
-        await markReportAsTampered(report.id);
-        console.log(`⚠️ Tampering detected in report #${report.id}`);
+    const currentHash = await generateHashFromUrl(report.file_url);
+
+    let sourceHash = report.file_hash;
+    try {
+      const blockchainRecord = await contract.getRecord(
+        report.blockchain_record_id
+      );
+      sourceHash = blockchainRecord[1];
+      console.log(`Blockchain hash for ${report.blockchain_record_id}: ${sourceHash}`);
+    } catch (err) {
+      console.log("Blockchain fetch failed, using MySQL fallback:", err.message);
+    }
+
+    const isAuthentic = currentHash === sourceHash;
+
+    if (!isAuthentic && !report.is_tampered) {
+      await markReportAsTampered(report.id);
+      console.log(`⚠️ Tampering detected in report #${report.id}`);
+      const existingLogs = await getLogsByRecordId(report.blockchain_record_id);
+      const hasVerifyLog = existingLogs.some(l => l.action === "verify");
+      if (!hasVerifyLog) {
         await createBlockchainLog(
           report.blockchain_record_id,
           "report",
@@ -30,21 +48,6 @@ const autoVerifyReport = async (report) => {
           null,
           false
         );
-      } else {
-        // Already tampered — check if log exists, if not write it
-        const existingLogs = await getLogsByRecordId(report.blockchain_record_id);
-        const hasVerifyLog = existingLogs.some(l => l.action === "verify");
-        if (!hasVerifyLog) {
-          await createBlockchainLog(
-            report.blockchain_record_id,
-            "report",
-            "verify",
-            currentHash,
-            null,
-            null,
-            false
-          );
-        }
       }
     }
 
